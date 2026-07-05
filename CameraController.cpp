@@ -2,10 +2,14 @@
 #include "Player.h"
 
 #include <algorithm> // std::max, std::min を使用するために必要
+#include <random>
 
 void CameraController::Initialize(KamataEngine::Camera* camera) { camera_ = camera; }
 
 void CameraController::Update() {
+	// 前回のシェイクオフセットを差し引いて元の位置に戻す
+	camera_->translation_ -= shakeOffset_;
+
 	// プレイヤーの現在位置を取得
 	const WorldTransform& targetWorldTransform = target_->GetWorldTransform();
 
@@ -30,11 +34,44 @@ void CameraController::Update() {
 	camera_->translation_.y = std::max(camera_->translation_.y, movableArea_.bottom);
 	camera_->translation_.y = std::min(camera_->translation_.y, movableArea_.top);
 
+	// シェイク更新
+	if (shakeTimer_ > 0.0f) {
+		shakeTimer_ -= 1.0f / 60.0f;
+		if (shakeTimer_ <= 0.0f) {
+			shakeTimer_ = 0.0f;
+			shakeOffset_ = {0.0f, 0.0f, 0.0f};
+		} else {
+			// 徐々に減衰させる
+			float progress = shakeTimer_ / shakeDuration_;
+			float currentIntensity = shakeIntensity_ * progress;
+
+			static std::mt19937 randGen(std::random_device{}());
+			std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+			shakeOffset_.x = dist(randGen) * currentIntensity;
+			shakeOffset_.y = dist(randGen) * currentIntensity;
+			shakeOffset_.z = 0.0f;
+		}
+	}
+
+	// シェイクオフセットを適用
+	camera_->translation_ += shakeOffset_;
+
 	// 最終的に行列を更新
 	camera_->UpdateMatrix();
 }
 
+void CameraController::StartShake(float duration, float intensity) {
+	shakeTimer_ = duration;
+	shakeDuration_ = duration;
+	shakeIntensity_ = intensity;
+}
+
 void CameraController::Reset() {
+	// 前回のシェイクオフセットがあれば差し引く
+	camera_->translation_ -= shakeOffset_;
+	shakeOffset_ = {0.0f, 0.0f, 0.0f};
+	shakeTimer_ = 0.0f;
+
 	// 追従対象の和０ルドトランスフォームを参照
 	const WorldTransform& targetWorldTransform = target_->GetWorldTransform();
 	// 追従対象とオフセットからカメラの位置を計算

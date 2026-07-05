@@ -2,6 +2,7 @@
 #include "GameOverScene.h"
 #include "GameScene.h"
 #include "KamataEngine.h"
+#include "base/WinApp.h"
 #include "TitleScene.h"
 #include <Windows.h>
 
@@ -171,6 +172,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		// エンジン更新（×ボタンで閉じたら終了）
 		if (KamataEngine::Update())
 			break;
+
+		// ===== アプリケーションウィンドウのアイコンを強制適用 =====
+		HWND hwnd = KamataEngine::WinApp::GetInstance()->GetHwnd();
+		if (hwnd) {
+			// 自プロセス(nullptr)のリソースID: 1 からアイコンをロード
+			HICON hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(1));
+			if (hIcon) {
+				SendMessageW(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+				SendMessageW(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+			}
+		}
 
 		// ImGui受付開始
 		imguiManager->Begin();

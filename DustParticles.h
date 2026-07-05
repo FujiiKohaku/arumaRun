@@ -12,6 +12,9 @@ public:
     // 発生させる
     void Emit(const KamataEngine::Vector3& position);
 
+    // 着地時に発生させる
+    void EmitLand(const KamataEngine::Vector3& position);
+
     // 更新
     void Update();
 

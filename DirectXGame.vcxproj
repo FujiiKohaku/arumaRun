@@ -124,6 +124,7 @@
     <ClCompile Include="TitleScene.cpp" />
     <ClCompile Include="FallingSpike.cpp" />
     <ClCompile Include="RisingSpike.cpp" />
+    <ClCompile Include="SparkParticles.cpp" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Resources\shaders\TerrainPS.hlsl">
@@ -201,6 +202,9 @@
     <None Include="Resources\shaders\Sprite.hlsli" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="CameraController.h" />
     <ClInclude Include="ClearScene.h" />
     <ClInclude Include="DeathParticles.h" />
@@ -218,6 +222,7 @@
     <ClInclude Include="TitleScene.h" />
     <ClInclude Include="FallingSpike.h" />
     <ClInclude Include="RisingSpike.h" />
+    <ClInclude Include="SparkParticles.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

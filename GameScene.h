@@ -157,4 +157,15 @@ private:
 
 	// ===== 飛び出すトゲ追加要素 =====
 	std::list<RisingSpike*> risingSpikes_; // 飛び出すトゲのリスト
+
+	// ===== スピードライン追加要素 =====
+	struct SpeedLine {
+		KamataEngine::Sprite* sprite = nullptr;
+		KamataEngine::Vector2 position;
+		float speed;
+		float width;
+		float alpha;
+	};
+	std::list<SpeedLine> speedLines_;
+	uint32_t speedLineTextureHandle_ = 0;
 };

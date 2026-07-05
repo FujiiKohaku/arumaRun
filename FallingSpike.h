@@ -2,6 +2,8 @@
 #include "KamataEngine.h"
 #include "Math.h"
 #include "MapChipField.h"
+#include "CameraController.h"
+#include "DustParticles.h"
 
 class FallingSpike {
 public:
@@ -12,9 +14,13 @@ public:
 		kLanded
 	};
 
-	void Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position, MapChipField* mapChipField);
+	void Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position, MapChipField* mapChipField, CameraController* cController);
 	void Update(float playerX);
 	void Draw();
+	void DrawWarningLines();
+
+public:
+	~FallingSpike();
 
 	// 状態と座標
 	State GetState() const { return state_; }
@@ -28,6 +34,7 @@ private:
 	KamataEngine::Model* model_ = nullptr;
 	KamataEngine::Camera* camera_ = nullptr;
 	MapChipField* mapChipField_ = nullptr;
+	CameraController* cController_ = nullptr;
 
 	State state_ = State::kWaiting;
 	KamataEngine::Vector3 startPosition_;
@@ -36,4 +43,9 @@ private:
 	float fallVelocity_ = 0.0f;
 	uint32_t soundHandleCrash_ = 0;
 	bool playedCrashSound_ = false;
+
+	// ===== 演出用 =====
+	DustParticles crashDust_;
+	KamataEngine::Model* dustModel_ = nullptr;
+	int blinkCounter_ = 0;
 };

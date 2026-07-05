@@ -1,5 +1,6 @@
 #pragma once
 #include "DustParticles.h"
+#include "SparkParticles.h"
 #include "Enemy2.h"
 #include "KamataEngine.h"
 #include "MapChipField.h"
@@ -7,6 +8,8 @@
 #include <algorithm>
 #include <array>
 #include <numbers>
+#include <list>
+#include <memory>
 // 前方宣言
 class MapChipField;
 class Enemy; // 02_10 21枚目
@@ -177,4 +180,26 @@ private:
 	uint32_t soundHandleSpring = 0;
 
 	uint32_t soundHandleChange = 0;
+
+	// ===== 演出追加要素 =====
+	// 着地煙
+	DustParticles landDust_;
+
+	// 摩擦火花
+	SparkParticles spark_;
+	float sparkEmitTimer_ = 0.0f;
+
+	// 残像エフェクト
+	static inline const int kMaxTrails = 5;
+	struct Trail {
+		KamataEngine::Vector3 translation;
+		KamataEngine::Vector3 rotation;
+		KamataEngine::Vector3 scale;
+		PlayerState state;
+		float alpha;
+	};
+	std::list<Trail> trails_;
+	std::array<KamataEngine::WorldTransform, kMaxTrails> trailTransforms_;
+	std::vector<std::unique_ptr<KamataEngine::ObjectColor>> trailColors_;
+	float trailEmitTimer_ = 0.0f;
 };

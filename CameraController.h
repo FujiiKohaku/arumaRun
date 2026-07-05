@@ -32,6 +32,9 @@ public:
 	// 移動可能範囲を設定
 	void SetMovableArea(const Rect& area) { movableArea_ = area; }
 
+	// 画面揺れ（シェイク）を開始
+	void StartShake(float duration, float intensity);
+
 private:
 	// カメラ本体
 	KamataEngine::Camera* camera_ = nullptr;
@@ -58,4 +61,10 @@ private:
 	// プレイヤーを画面内に収めるためのマージン
 	// → 左右: ±9.0f, 上下: ±5.0f
 	static inline const Rect targetMargin = {-9.0f, 9.0f, -5.0f, 5.0f};
+
+	// 画面揺れ用変数
+	float shakeTimer_ = 0.0f;
+	float shakeDuration_ = 0.0f;
+	float shakeIntensity_ = 0.0f;
+	KamataEngine::Vector3 shakeOffset_ = {0.0f, 0.0f, 0.0f};
 };

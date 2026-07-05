@@ -41,6 +41,23 @@ void Player::Initialize(KamataEngine::Model* model, KamataEngine::Model* modelRo
 	soundHandleSpring = Audio::GetInstance()->LoadWave("jumpbane.wav");
 	soundHandleChange = Audio::GetInstance()->LoadWave("changeMode.wav");
 	dust_.Initialize(dustModel_, camera_);
+
+	// ===== 新規演出初期化 =====
+	landDust_.Initialize(dustModel_, camera_);
+	spark_.Initialize(dustModel_, camera_);
+
+	trailColors_.clear();
+	for (int i = 0; i < kMaxTrails; i++) {
+		auto color = std::make_unique<ObjectColor>();
+		color->Initialize();
+		trailColors_.push_back(std::move(color));
+	}
+	for (auto& transform : trailTransforms_) {
+		transform.Initialize();
+	}
+	trails_.clear();
+	trailEmitTimer_ = 0.0f;
+	sparkEmitTimer_ = 0.0f;
 }
 
 #pragma region 入力処理ジャンプ関数化
@@ -362,6 +379,10 @@ void Player::UpdateOnGround(const CollisionMapInfo& info) {
 			onGround_ = true; // 着地
 			velocity_.x *= (1.0f - kAttenuationLanding);
 			velocity_.y = 0.0f;
+
+			// 着地煙を発生させる
+			Vector3 footPos = worldTransform_.translation_ + Vector3(0.0f, -kHeight / 2.0f, 0.0f);
+			landDust_.EmitLand(footPos);
 		}
 	}
 }
@@ -428,6 +449,57 @@ void Player::Update() {
 	}
 	dust_.Update();
 
+	// ===== 着地煙の更新 =====
+	landDust_.Update();
+
+	// ===== スライディング摩擦火花の発生と更新 =====
+	if (state_ == PlayerState::Rolling && onGround_ && fabs(velocity_.x) > 0.1f) {
+		sparkEmitTimer_ += 1.0f / 60.0f;
+		if (sparkEmitTimer_ >= 0.05f) { // 0.05秒ごとに発生
+			Vector3 footPos = worldTransform_.translation_ + Vector3(0.0f, -kHeight / 2.0f, 0.0f);
+			spark_.Emit(footPos);
+			sparkEmitTimer_ = 0.0f;
+		}
+	} else {
+		sparkEmitTimer_ = 0.0f;
+	}
+	spark_.Update();
+
+	// ===== 残像の記録 =====
+	bool shouldEmitTrail = false;
+	if (state_ == PlayerState::Rolling) {
+		shouldEmitTrail = true;
+	} else if (!onGround_ && velocity_.y > 0.05f) {
+		shouldEmitTrail = true;
+	}
+
+	trailEmitTimer_ += 1.0f / 60.0f;
+	if (shouldEmitTrail && trailEmitTimer_ >= 0.06f) { // 約4フレームごと
+		Trail newTrail;
+		newTrail.translation = worldTransform_.translation_;
+		newTrail.rotation = worldTransform_.rotation_;
+		newTrail.scale = worldTransform_.scale_;
+
+		newTrail.state = state_;
+		newTrail.alpha = 0.6f; // 初期アルファ
+
+		trails_.push_front(newTrail);
+		if (trails_.size() > kMaxTrails) {
+			trails_.pop_back();
+		}
+		trailEmitTimer_ = 0.0f;
+	}
+
+	// 残像のフェードアウトと削除
+	for (auto it = trails_.begin(); it != trails_.end(); ) {
+		it->alpha -= 0.03f; // 更新速度に合わせて減衰
+		if (it->alpha <= 0.0f) {
+			it = trails_.erase(it);
+		} else {
+			++it;
+		}
+	}
+
 	//==================================================
 	// 移動・衝突判定
 	//==================================================
@@ -484,7 +556,36 @@ void Player::Draw() {
 	} else {
 		model_->Draw(worldTransform_, *camera_);
 	}
+
+	// ===== 残像の描画 =====
+	int colorIndex = 0;
+	for (auto& trail : trails_) {
+		if (colorIndex >= trailColors_.size())
+			break;
+
+		// 事前確保された WorldTransform にパラメータをコピーして更新
+		auto& wt = trailTransforms_[colorIndex];
+		wt.translation_ = trail.translation;
+		wt.rotation_ = trail.rotation;
+		wt.scale_ = trail.scale;
+		WorldTransformUpdate(wt);
+
+		// シアン調の半透明カラーを設定
+		Vector4 trailColor = {0.3f, 0.7f, 1.0f, trail.alpha};
+		trailColors_[colorIndex]->SetColor(trailColor);
+
+		if (trail.state == PlayerState::Rolling) {
+			modelRollling_->Draw(wt, *camera_, trailColors_[colorIndex].get());
+		} else {
+			model_->Draw(wt, *camera_, trailColors_[colorIndex].get());
+		}
+		colorIndex++;
+	}
+
+	// 各パーティクルの描画
 	dust_.Draw();
+	landDust_.Draw();
+	spark_.Draw();
 }
 
 //==================================================

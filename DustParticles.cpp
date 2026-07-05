@@ -42,6 +42,32 @@ void DustParticles::Emit(const Vector3& position) {
 	}
 }
 
+// 着地発生
+void DustParticles::EmitLand(const Vector3& position) {
+	counter_ = 0.0f;
+	isFinished_ = false;
+
+	static std::mt19937 rng(std::random_device{}());
+	std::uniform_real_distribution<float> speedDist(kMinSpeed_ * 2.0f, kMaxSpeed_ * 3.0f);
+	std::uniform_real_distribution<float> heightDist(0.01f, 0.03f);
+
+	for (uint32_t i = 0; i < kNumParticles; i++) {
+		worldTransforms_[i].Initialize();
+		worldTransforms_[i].translation_ = position + Vector3(0.0f, 0.05f, 0.0f);
+		worldTransforms_[i].scale_ = {0.35f, 0.35f, 0.35f}; // 着地煙なので少し大きめ
+
+		float speed = speedDist(rng);
+		// 偶数は右、奇数は左へ
+		float dirX = (i % 2 == 0) ? 1.0f : -1.0f;
+
+		velocities_[i] = {
+		    dirX * speed,
+		    heightDist(rng),
+		    0.0f // 2D風ゲームのためZ軸は抑えめ
+		};
+	}
+}
+
 // 更新
 void DustParticles::Update() {
 	if (isFinished_)

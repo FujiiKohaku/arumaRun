@@ -1,4 +1,6 @@
 #include "GameScene.h"
+#include <random>
+#include <chrono>
 using namespace KamataEngine;
 
 //--------------------------------------------------
@@ -71,6 +73,12 @@ GameScene::~GameScene() {
 		delete rs;
 	}
 	risingSpikes_.clear();
+
+	// ====== スピードラインの解放 ======
+	for (auto& line : speedLines_) {
+		delete line.sprite;
+	}
+	speedLines_.clear();
 }
 
 //==================================================
@@ -181,6 +189,10 @@ void GameScene::Initialize() {
 	soundhandleGo_ = Audio::GetInstance()->LoadWave("GO.wav");
 	soundHandleCoin_ = Audio::GetInstance()->LoadWave("serect.wav");
 	coinCount_ = 0;
+
+	// ===== スピードラインの初期化 =====
+	speedLines_.clear();
+	speedLineTextureHandle_ = TextureManager::Load("white1x1.png");
 }
 
 //==================================================
@@ -312,8 +324,8 @@ void GameScene::Update() {
 				if (!fire)
 					continue;
 
-				float amplitude = 0.4f; // 上下の振れ幅を小さく（1.0fから0.4fに変更）
-				float speed = 2.0f;     // 上下の速さ
+				float amplitude = 0.8f; // 上下の振れ幅（0.4fから拡大）
+				float speed = 3.0f;     // 上下の速さ（2.0fから加速）
 
 				// 座標蓄積バグを防ぐため、マップチップから元々の初期Y座標を取得
 				float baseY = mapChipField_->GetMapChipPositionByIndex(j, i).y;
@@ -402,6 +414,66 @@ void GameScene::Update() {
 			it = hitEffects_.erase(it);
 		} else {
 			++it;
+		}
+	}
+
+	// ===== スピードラインの更新 =====
+	// ポーズ中、フェードアウト中、死亡中はスピードラインを更新しない（停止）
+	if (phase_ != Phase::kPause && phase_ != Phase::kFadeOut && phase_ != Phase::kDeath) {
+		float spawnProbability = 0.05f; // 通常時
+		float lineSpeedMin = 15.0f;
+		float lineSpeedMax = 30.0f;
+
+		// プレイヤーの状態によって発生頻度と速度をブースト
+		if (phase_ == Phase::kPlay && player_ && !player_->IsDead()) {
+			if (player_->state_ == Player::PlayerState::Rolling) {
+				spawnProbability = 0.25f; // スライディング中は25%
+				lineSpeedMin = 30.0f;
+				lineSpeedMax = 50.0f;
+			} else if (player_->GetVelocity().y > 0.05f) {
+				spawnProbability = 0.15f; // バネジャンプ中などは15%
+				lineSpeedMin = 25.0f;
+				lineSpeedMax = 40.0f;
+			}
+		} else if (player_ && player_->IsDead()) {
+			spawnProbability = 0.0f; // 死亡時は発生しない
+		}
+
+		static std::mt19937 rng(std::random_device{}());
+		std::uniform_real_distribution<float> probDist(0.0f, 1.0f);
+		std::uniform_real_distribution<float> yDist(50.0f, 670.0f);        // 画面縦の範囲
+		std::uniform_real_distribution<float> widthDist(80.0f, 300.0f);    // 線の長さ
+		std::uniform_real_distribution<float> heightDist(1.0f, 2.5f);      // 線の太さ（細いほどスタイリッシュ）
+		std::uniform_real_distribution<float> speedDist(lineSpeedMin, lineSpeedMax);
+		std::uniform_real_distribution<float> alphaDist(0.1f, 0.35f);      // 不透明度
+
+		if (probDist(rng) < spawnProbability) {
+			SpeedLine newLine;
+			newLine.position = {1280.0f, yDist(rng)};
+			newLine.speed = speedDist(rng);
+			newLine.width = widthDist(rng);
+			newLine.alpha = alphaDist(rng);
+
+			float height = heightDist(rng);
+			Vector4 color = {1.0f, 1.0f, 1.0f, newLine.alpha};
+
+			newLine.sprite = Sprite::Create(speedLineTextureHandle_, newLine.position, color, {0.0f, 0.5f});
+			newLine.sprite->SetSize({newLine.width, height});
+
+			speedLines_.push_back(newLine);
+		}
+
+		// 移動と削除
+		for (auto it = speedLines_.begin(); it != speedLines_.end(); ) {
+			it->position.x -= it->speed;
+			it->sprite->SetPosition(it->position);
+
+			if (it->position.x + it->width < 0.0f) {
+				delete it->sprite;
+				it = speedLines_.erase(it);
+			} else {
+				++it;
+			}
 		}
 	}
 }
@@ -513,6 +585,11 @@ void GameScene::Draw() {
 		}
 	}
 
+	// --- 落下プレス機の警告ライン描画 ---
+	for (FallingSpike* fs : fallingSpikes_) {
+		fs->DrawWarningLines();
+	}
+
 	Model::PostDraw();
 	// ==============================
 	// 3D描画終了
@@ -523,11 +600,36 @@ void GameScene::Draw() {
 	// ==============================
 	Sprite::PreDraw(dxcommon->GetCommandList());
 
+	// --- スピードライン描画 ---
+	for (auto& line : speedLines_) {
+		line.sprite->Draw();
+	}
 
 	if (phase_ == Phase::kPause) {
 
 		spritePose_->Draw();
 	}
+
+#ifdef _DEBUG
+	// --- FPSの計算と表示 (左上に表示) ---
+	static auto lastTime = std::chrono::steady_clock::now();
+	static int frameCount = 0;
+	static float fps = 0.0f;
+
+	frameCount++;
+	auto currentTime = std::chrono::steady_clock::now();
+	std::chrono::duration<float> elapsed = currentTime - lastTime;
+
+	if (elapsed.count() >= 1.0f) {
+		fps = frameCount / elapsed.count();
+		frameCount = 0;
+		lastTime = currentTime;
+	}
+
+	char fpsString[32];
+	snprintf(fpsString, sizeof(fpsString), "FPS: %.2f", fps);
+	DebugText::GetInstance()->Print(fpsString, 50, 20, 1.5f);
+#endif
 
 	// --- HPテキストの描画 (DebugText) ---
 	char hpString[64];
@@ -873,12 +975,22 @@ void GameScene::UpdateDynamicBlocks() {
 				mapChipField_->SetMapChipType(j, i, MapChipType::kBlank); // 重複生成防止
 			}
 			else if (type == MapChipType::kFallingSpike) {
-				Vector3 spikePos = mapChipField_->GetMapChipPositionByIndex(j, i);
-				FallingSpike* fs = new FallingSpike();
-				// プレス機モデルには modelBlock_ を流用する
-				fs->Initialize(modelBlock_, camera_, spikePos, mapChipField_);
-				fallingSpikes_.push_back(fs);
-				mapChipField_->SetMapChipType(j, i, MapChipType::kBlank); // 重複生成防止
+				// プレス機の横幅（連続する列数）を 2〜8 マスでランダムに決定
+				int width = rand() % 7 + 2;
+
+				// その幅の分だけ連続して FallingSpike を配置
+				for (int w = 0; w < width; ++w) {
+					int targetX = j + w;
+					if (targetX < (int)neededColumns) {
+						Vector3 spikePos = mapChipField_->GetMapChipPositionByIndex(targetX, i);
+						FallingSpike* fs = new FallingSpike();
+						fs->Initialize(modelBlock_, camera_, spikePos, mapChipField_, cController_);
+						fallingSpikes_.push_back(fs);
+
+						// 重複生成を防ぐため、配置した範囲のマップチップを消去
+						mapChipField_->SetMapChipType(targetX, i, MapChipType::kBlank);
+					}
+				}
 			}
 			else if (type == MapChipType::kRisingSpike) {
 				Vector3 spikePos = mapChipField_->GetMapChipPositionByIndex(j, i);
